@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Electricity Supply & Demand Simulator</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Google Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b0f19;
+            color: #f8fafc;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #111827;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #374151;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #4b5563;
+        }
+        input[type=range] {
+            accent-color: #38bdf8;
+        }
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); }
+            50% { box-shadow: 0 0 25px rgba(16, 185, 129, 0.8); }
+        }
+        .glow-success {
+            animation: pulseGlow 2.5s infinite ease-in-out;
+        }
+        @keyframes pulseGlowWarning {
+            0%, 100% { box-shadow: 0 0 15px rgba(244, 63, 94, 0.4); }
+            50% { box-shadow: 0 0 25px rgba(244, 63, 94, 0.8); }
+        }
+        .glow-warning {
+            animation: pulseGlowWarning 2s infinite ease-in-out;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+
+    <!-- Top Navigation Header -->
+    <header class="border-b border-slate-800/80 bg-slate-900/90 backdrop-blur px-6 py-4 flex flex-wrap items-center justify-between gap-4 sticky top-0 z-50">
+        <div class="flex items-center gap-3">
+            <div class="p-2.5 bg-sky-500/10 border border-sky-500/30 rounded-xl text-sky-400">
+                <i data-lucide="zap" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                    Electricity Supply & Demand Simulator
+                    <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Peak Gas & Grid Reliability</span>
+                </h1>
+                <p class="text-xs text-slate-400">Full 1-Year (8,760 Hours) Sector Demand, Storage, Peak Gas Needs & Demand Reliability</p>
+            </div>
+        </div>
+
+        <!-- Preset Scenario Buttons -->
+        <div class="flex items-center gap-2 overflow-x-auto py-1">
+            <span class="text-xs font-medium text-slate-400 mr-1 hidden xl:inline">Presets:</span>
+            <button onclick="applyPreset('current')" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition flex items-center gap-1.5">
+                <i data-lucide="building" class="w-3.5 h-3.5 text-slate-400"></i> Baseline Grid
+            </button>
+            <button onclick="applyPreset('high_renewable')" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-sky-300 rounded-lg border border-slate-700 hover:border-sky-500/50 transition flex items-center gap-1.5">
+                <i data-lucide="wind" class="w-3.5 h-3.5 text-sky-400"></i> High Renewable + Storage
+            </button>
+            <button onclick="applyPreset('nuclear_clean')" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-amber-300 rounded-lg border border-slate-700 hover:border-amber-500/50 transition flex items-center gap-1.5">
+                <i data-lucide="atom" class="w-3.5 h-3.5 text-amber-400"></i> Nuclear & Clean Heat
+            </button>
+            <button onclick="applyPreset('deep_electrification')" class="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-emerald-300 rounded-lg border border-slate-700 hover:border-emerald-500/50 transition flex items-center gap-1.5">
+                <i data-lucide="cpu" class="w-3.5 h-3.5 text-emerald-400"></i> Deep Electrification 2050
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 max-w-[1920px] mx-auto w-full">
+
+        <!-- Sidebar Inputs & Controls -->
+        <div class="lg:col-span-4 xl:col-span-3 space-y-6 flex flex-col">
+            
+            <!-- Sector Annual Demand Input Card -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                        <i data-lucide="activity" class="w-4 h-4 text-sky-400"></i>
+                        Annual Demand (TWh)
+                    </h2>
+                    <span id="totalDemandBadge" class="text-xs font-bold text-sky-400 bg-sky-950 px-2 py-0.5 rounded border border-sky-800">320 TWh</span>
+                </div>
+
+                <!-- Buildings Demand Slider -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-300 flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block"></span> Buildings (Heat/Appliance)
+                        </span>
+                        <span id="buildingsVal" class="font-mono text-slate-200">140 TWh</span>
+                    </div>
+                    <input type="range" id="inputBuildings" min="40" max="350" step="5" value="140" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+
+                <!-- Transport Demand Slider -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-300 flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full bg-cyan-500 inline-block"></span> Transport (EV Fleet)
+                        </span>
+                        <span id="transportVal" class="font-mono text-slate-200">60 TWh</span>
+                    </div>
+                    <input type="range" id="inputTransport" min="10" max="250" step="5" value="60" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+
+                <!-- Industry Demand Slider -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-300 flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full bg-indigo-500 inline-block"></span> Industry & Tech
+                        </span>
+                        <span id="industryVal" class="font-mono text-slate-200">120 TWh</span>
+                    </div>
+                    <input type="range" id="inputIndustry" min="30" max="300" step="5" value="120" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+            </div>
+
+            <!-- Installed Supply Capacity Input Card -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                        <i data-lucide="sun-wind" class="w-4 h-4 text-emerald-400"></i>
+                        Generation Capacity (GW)
+                    </h2>
+                </div>
+
+                <!-- Wind Capacity Slider -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-300 flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block"></span> Wind (Offshore/Onshore)
+                        </span>
+                        <span id="windVal" class="font-mono text-slate-200">45 GW</span>
+                    </div>
+                    <input type="range" id="inputWind" min="0" max="180" step="1" value="45" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+
+                <!-- Solar PV Capacity Slider -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-300 flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full bg-yellow-400 inline-block"></span> Solar PV
+                        </span>
+                        <span id="solarVal" class="font-mono text-slate-200">25 GW</span>
+                    </div>
+                    <input type="range" id="inputSolar" min="0" max="220" step="1" value="25" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+
+                <!-- Nuclear Capacity Slider -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-300 flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full bg-purple-500 inline-block"></span> Nuclear Baseload
+                        </span>
+                        <span id="nuclearVal" class="font-mono text-slate-200">6 GW</span>
+                    </div>
+                    <input type="range" id="inputNuclear" min="0" max="40" step="1" value="6" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+
+                <!-- Gas Capacity Slider (Max Extended to 250 GW) -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-300 flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span> Installed Gas Thermal Backup
+                        </span>
+                        <span id="gasVal" class="font-mono text-slate-200">55 GW</span>
+                    </div>
+                    <input type="range" id="inputGas" min="0" max="250" step="1" value="55" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                    <p class="text-[10px] text-slate-500">Backup dispatch capacity needed when renewables & battery are depleted.</p>
+                </div>
+            </div>
+
+            <!-- Battery Storage Flexibility Input Card -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                        <i data-lucide="battery-charging" class="w-4 h-4 text-emerald-400"></i>
+                        Battery Energy Storage System
+                    </h2>
+                </div>
+
+                <!-- Battery Power (GW) Slider -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-300">Power Rating (GW)</span>
+                        <span id="batteryPowerVal" class="font-mono text-slate-200">10 GW</span>
+                    </div>
+                    <input type="range" id="inputBatteryPower" min="0" max="60" step="1" value="10" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+
+                <!-- Battery Energy Capacity (GWh) Slider -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between text-xs">
+                        <span class="text-slate-300">Energy Capacity (GWh)</span>
+                        <span id="batteryCapVal" class="font-mono text-slate-200">40 GWh</span>
+                    </div>
+                    <input type="range" id="inputBatteryCap" min="0" max="300" step="5" value="40" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Main Dashboard Visuals & Metrics -->
+        <div class="lg:col-span-8 xl:col-span-9 space-y-6">
+
+            <!-- Dynamic Reliability Status Banner -->
+            <div id="demandStatusBanner" class="rounded-2xl p-4 border transition-all duration-300 flex flex-wrap items-center justify-between gap-4 bg-emerald-950/60 border-emerald-500/50 text-emerald-200 glow-success">
+                <div class="flex items-center gap-3.5">
+                    <div id="statusIconContainer" class="p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                        <i data-lucide="check-circle-2" id="statusIcon" class="w-7 h-7"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h2 id="statusTitle" class="text-base font-bold text-white tracking-wide">ALL DEMAND FULLY MET (100% RELIABILITY)</h2>
+                            <span id="statusBadge" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">Zero Shortfall</span>
+                        </div>
+                        <p id="statusDesc" class="text-xs text-emerald-300/80 mt-0.5">Supply successfully satisfied electricity load across all 8,760 hours of the year.</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4 border-l border-emerald-500/20 pl-4 shrink-0">
+                    <div>
+                        <span class="text-[10px] uppercase tracking-wider text-slate-400 block">Peak Gas Needed</span>
+                        <span id="bannerPeakGasNeeded" class="text-lg font-extrabold text-white font-mono">0.0 GW</span>
+                    </div>
+                    <div>
+                        <span class="text-[10px] uppercase tracking-wider text-slate-400 block">Installed Gas</span>
+                        <span id="bannerInstalledGas" class="text-lg font-extrabold text-slate-300 font-mono">55.0 GW</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPI Metric Cards Grid -->
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+                
+                <!-- Metric 1: Clean Energy Share (% of demand met by non-fossil) -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-lg">
+                    <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Clean Share</span>
+                    <div class="mt-1 flex items-baseline">
+                        <span id="metricCleanShare" class="text-2xl font-extrabold text-emerald-400">0%</span>
+                    </div>
+                    <div class="mt-2 w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                        <div id="barCleanShare" class="bg-emerald-400 h-full w-0 transition-all duration-300"></div>
+                    </div>
+                    <span class="text-[9px] text-slate-500 mt-1">% demand met by clean energy</span>
+                </div>
+
+                <!-- Metric 2: Gas Dispatched -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-lg">
+                    <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Gas Dispatched</span>
+                    <div class="mt-1 flex items-baseline">
+                        <span id="metricGasTWh" class="text-2xl font-extrabold text-rose-400">0 TWh</span>
+                    </div>
+                    <span id="metricGasCapFactor" class="text-[10px] text-slate-400 mt-1">Cap Factor: 0%</span>
+                </div>
+
+                <!-- Metric 3: Max Gas Required -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-lg ring-1 ring-amber-500/30">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[11px] font-medium text-amber-300 uppercase tracking-wider">Max Gas Required</span>
+                        <i data-lucide="flame" class="w-3.5 h-3.5 text-amber-400"></i>
+                    </div>
+                    <div class="mt-1 flex items-baseline">
+                        <span id="metricMaxGasGW" class="text-2xl font-extrabold text-amber-400">0 GW</span>
+                    </div>
+                    <span id="metricGasMargin" class="text-[10px] text-slate-400 mt-1">Margin: +0 GW</span>
+                </div>
+
+                <!-- Metric 4: Battery Cycles -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-lg">
+                    <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Battery Cycles</span>
+                    <div class="mt-1 flex items-baseline">
+                        <span id="metricBatteryDischarged" class="text-2xl font-extrabold text-emerald-300">0 TWh</span>
+                    </div>
+                    <span id="metricBatteryCycles" class="text-[10px] text-slate-400 mt-1">0 cycles/yr</span>
+                </div>
+
+                <!-- Metric 5: Curtailment -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-lg">
+                    <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Curtailment</span>
+                    <div class="mt-1 flex items-baseline">
+                        <span id="metricCurtailmentTWh" class="text-2xl font-extrabold text-amber-400">0 TWh</span>
+                    </div>
+                    <span id="metricPeakSurplus" class="text-[10px] text-slate-400 mt-1">Peak: 0 GW</span>
+                </div>
+
+                <!-- Metric 6: Unmet Load -->
+                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col justify-between shadow-lg">
+                    <span class="text-[11px] font-medium text-slate-400 uppercase tracking-wider">Unmet Load</span>
+                    <div class="mt-1 flex items-baseline">
+                        <span id="metricUnmetTWh" class="text-2xl font-extrabold text-sky-300">0 TWh</span>
+                    </div>
+                    <span id="metricUnmetHours" class="text-[10px] text-slate-400 mt-1">0 shortfall hrs</span>
+                </div>
+
+            </div>
+
+            <!-- Main Hourly Dispatch Chart Box -->
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-4">
+                <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-800 pb-4">
+                    <div class="flex items-center gap-2">
+                        <i data-lucide="line-chart" class="w-5 h-5 text-sky-400"></i>
+                        <h2 class="text-base font-bold text-slate-100">Hourly Energy Balance & Storage State</h2>
+                    </div>
+
+                    <div class="flex items-center gap-1.5 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs flex-wrap">
+                        <button onclick="setTimeWindow('winter_peak')" id="btnWinWinter" class="px-3 py-1.5 rounded-lg font-medium transition bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                            Winter Peak (Jan)
+                        </button>
+                        <button onclick="setTimeWindow('dunkelflaute')" id="btnWinDunkelflaute" class="px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-slate-200">
+                            Dunkelflaute (Jan)
+                        </button>
+                        <button onclick="setTimeWindow('summer_solar')" id="btnWinSummer" class="px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-slate-200">
+                            Summer Peak Solar (Jul)
+                        </button>
+                        <button onclick="setTimeWindow('full_year')" id="btnWinFull" class="px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-slate-200">
+                            Full Year (8760h)
+                        </button>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-4 bg-slate-950 px-4 py-2.5 rounded-xl border border-slate-800/80">
+                    <div class="flex items-center gap-2">
+                        <button id="btnPlayPause" onclick="togglePlayPause()" class="p-1.5 bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 rounded-lg transition border border-sky-500/40">
+                            <i data-lucide="play" id="iconPlay" class="w-4 h-4"></i>
+                        </button>
+                        <span class="text-xs font-semibold text-slate-300 min-w-[70px]" id="scrubHourLabel">Hour: 0</span>
+                    </div>
+                    <input type="range" id="sliderTimeScrubber" min="0" max="8592" step="24" value="24" class="w-full h-1.5 bg-slate-800 rounded-lg cursor-pointer">
+                    <span id="scrubberDateRange" class="text-xs font-mono text-slate-400 shrink-0">Jan 2 - Jan 9</span>
+                </div>
+
+                <div class="relative w-full h-[380px]">
+                    <canvas id="hourlyBalanceChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Bottom Chart Grid -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <div class="lg:col-span-7 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
+                    <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                        <i data-lucide="bar-chart-3" class="w-4 h-4 text-sky-400"></i>
+                        Monthly Energy Balance (TWh)
+                    </h3>
+                    <div class="relative h-[240px]">
+                        <canvas id="monthlyBalanceChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-5 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                            <i data-lucide="trending-down" class="w-4 h-4 text-rose-400"></i>
+                            Net Load Duration & Peak Gas Threshold
+                        </h3>
+                        <span class="text-[10px] text-slate-400">Sorted 8760 Hours</span>
+                    </div>
+                    <div class="relative h-[240px]">
+                        <canvas id="durationCurveChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        const HOURS_IN_YEAR = 8760;
+        const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+        const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+        let profiles = {
+            wind: new Float32Array(HOURS_IN_YEAR),
+            solar: new Float32Array(HOURS_IN_YEAR),
+            buildings: new Float32Array(HOURS_IN_YEAR),
+            transport: new Float32Array(HOURS_IN_YEAR),
+            industry: new Float32Array(HOURS_IN_YEAR)
+        };
+
+        let state = {
+            demandBuildingsTWh: 140,
+            demandTransportTWh: 60,
+            demandIndustryTWh: 120,
+            capWindGW: 45,
+            capSolarGW: 25,
+            capNuclearGW: 6,
+            capGasGW: 55,
+            batteryPowerGW: 10,
+            batteryCapGWh: 40,
+            windowStartHour: 24,
+            windowLengthHours: 168,
+            isPlaying: false
+        };
+
+        let calc = {
+            demand: new Float32Array(HOURS_IN_YEAR),
+            nuclear: new Float32Array(HOURS_IN_YEAR),
+            wind: new Float32Array(HOURS_IN_YEAR),
+            solar: new Float32Array(HOURS_IN_YEAR),
+            batteryDischarge: new Float32Array(HOURS_IN_YEAR),
+            batteryCharge: new Float32Array(HOURS_IN_YEAR),
+            batterySoC: new Float32Array(HOURS_IN_YEAR),
+            gasDispatch: new Float32Array(HOURS_IN_YEAR),
+            curtailment: new Float32Array(HOURS_IN_YEAR),
+            unmetLoad: new Float32Array(HOURS_IN_YEAR),
+            netLoadSorted: new Float32Array(HOURS_IN_YEAR)
+        };
+
+        let monthly = {
+            demand: new Float32Array(12),
+            nuclear: new Float32Array(12),
+            wind: new Float32Array(12),
+            solar: new Float32Array(12),
+            batteryDischarge: new Float32Array(12),
+            gas: new Float32Array(12),
+            curtailment: new Float32Array(12)
+        };
+
+        let hourlyChart = null;
+        let monthlyChart = null;
+        let durationChart = null;
+        let playbackTimer = null;
+
+        function generateProfiles() {
+            let seed = 42;
+            function rand() {
+                let x = Math.sin(seed++) * 10000;
+                return x - Math.floor(x);
+            }
+
+            for (let h = 0; h < HOURS_IN_YEAR; h++) {
+                let dayOfYear = Math.floor(h / 24);
+                let hourOfDay = h % 24;
+                let dayOfWeek = Math.floor((h / 24) % 7);
+                let seasonRad = ((dayOfYear - 172) / 365) * 2 * Math.PI;
+
+                let synopticWave = Math.sin((h / (24 * 4)) * 2 * Math.PI) * 0.35 + Math.cos((h / 33) * 2 * Math.PI) * 0.25;
+                let windSeasonal = 1.0 - 0.3 * Math.sin(seasonRad);
+                let dunkelflauteFactor = (h >= 240 && h <= 360) ? 0.06 : 1.0;
+                let baseWind = 0.4 + synopticWave + (rand() * 0.15 - 0.075);
+                profiles.wind[h] = Math.max(0.02, Math.min(0.95, baseWind * windSeasonal * dunkelflauteFactor));
+
+                let solarDeclination = 0.5 + 0.5 * Math.sin(seasonRad);
+                let solarDiurnal = Math.max(0, Math.sin(((hourOfDay - 6) / 12) * Math.PI));
+                if (hourOfDay < 5 || hourOfDay > 20) solarDiurnal = 0;
+                let clouds = rand() > 0.8 ? (0.2 + rand() * 0.4) : 1.0;
+                profiles.solar[h] = Math.min(0.9, solarDiurnal * (0.1 + 0.9 * solarDeclination) * clouds);
+
+                let heatFactor = 1.0 - 0.45 * Math.sin(seasonRad);
+                let bldgDiurnal = 0.4 
+                    + 0.35 * Math.exp(-Math.pow((hourOfDay - 8) / 2.2, 2))
+                    + 0.55 * Math.exp(-Math.pow((hourOfDay - 19) / 2.5, 2));
+                profiles.buildings[h] = bldgDiurnal * heatFactor;
+
+                let transportDiurnal = 0.25 
+                    + 0.25 * Math.exp(-Math.pow((hourOfDay - 8) / 2, 2))
+                    + 0.70 * Math.exp(-Math.pow((hourOfDay - 20) / 3, 2));
+                let weekendTrans = (dayOfWeek >= 5) ? 0.8 : 1.0;
+                profiles.transport[h] = transportDiurnal * weekendTrans;
+
+                let indDiurnal = 0.75 + (hourOfDay >= 7 && hourOfDay <= 18 ? 0.25 : 0.05);
+                let indWeekend = (dayOfWeek >= 5) ? 0.65 : 1.0;
+                profiles.industry[h] = indDiurnal * indWeekend;
+            }
+
+            normalize(profiles.buildings);
+            normalize(profiles.transport);
+            normalize(profiles.industry);
+        }
+
+        function normalize(arr) {
+            let sum = 0;
+            for (let i = 0; i < arr.length; i++) sum += arr[i];
+            if (sum > 0) {
+                for (let i = 0; i < arr.length; i++) arr[i] /= sum;
+            }
+        }
+
+        function runSimulation() {
+            const bldgScale = state.demandBuildingsTWh * 1000;
+            const transScale = state.demandTransportTWh * 1000;
+            const indScale = state.demandIndustryTWh * 1000;
+
+            let totalDemandGWh = 0;
+            let totalNuclearGWh = 0;
+            let totalWindGWh = 0;
+            let totalSolarGWh = 0;
+            let totalGasGWh = 0;
+            let totalCurtailmentGWh = 0;
+            let totalUnmetGWh = 0;
+            let totalBatteryDischargeGWh = 0;
+            let maxSurplusGW = 0;
+            let maxGasRequiredGW = 0;
+            let unmetHoursCount = 0;
+
+            monthly.demand.fill(0);
+            monthly.nuclear.fill(0);
+            monthly.wind.fill(0);
+            monthly.solar.fill(0);
+            monthly.batteryDischarge.fill(0);
+            monthly.gas.fill(0);
+            monthly.curtailment.fill(0);
+
+            let batteryStoredGWh = state.batteryCapGWh * 0.5;
+            const roundTripEfficiency = 0.90;
+
+            let currentMonth = 0;
+            let dayCounter = 0;
+
+            for (let h = 0; h < HOURS_IN_YEAR; h++) {
+                let dayOfYear = Math.floor(h / 24);
+                
+                if (dayOfYear >= (dayCounter + DAYS_IN_MONTH[currentMonth]) && currentMonth < 11) {
+                    dayCounter += DAYS_IN_MONTH[currentMonth];
+                    currentMonth++;
+                }
+
+                let dG = (profiles.buildings[h] * bldgScale) +
+                         (profiles.transport[h] * transScale) +
+                         (profiles.industry[h] * indScale);
+                calc.demand[h] = dG;
+                totalDemandGWh += dG;
+                monthly.demand[currentMonth] += dG / 1000;
+
+                let nucAvail = (dayOfYear >= 120 && dayOfYear <= 135) ? 0.82 : 0.95;
+                let nucG = state.capNuclearGW * nucAvail;
+                calc.nuclear[h] = nucG;
+                totalNuclearGWh += nucG;
+                monthly.nuclear[currentMonth] += nucG / 1000;
+
+                let windG = state.capWindGW * profiles.wind[h];
+                let solarG = state.capSolarGW * profiles.solar[h];
+                calc.wind[h] = windG;
+                calc.solar[h] = solarG;
+                totalWindGWh += windG;
+                totalSolarGWh += solarG;
+                monthly.wind[currentMonth] += windG / 1000;
+                monthly.solar[currentMonth] += solarG / 1000;
+
+                let cleanG = nucG + windG + solarG;
+                let netBalance = cleanG - dG;
+
+                if (netBalance >= 0) {
+                    let surplus = netBalance;
+                    calc.gasDispatch[h] = 0;
+                    calc.batteryDischarge[h] = 0;
+
+                    let maxChargePossible = Math.min(surplus, state.batteryPowerGW);
+                    let spaceInBattery = state.batteryCapGWh - batteryStoredGWh;
+                    let actualCharge = Math.min(maxChargePossible, spaceInBattery / roundTripEfficiency);
+
+                    batteryStoredGWh += actualCharge * roundTripEfficiency;
+                    calc.batteryCharge[h] = actualCharge;
+
+                    let remainingSurplus = surplus - actualCharge;
+                    calc.curtailment[h] = remainingSurplus;
+                    totalCurtailmentGWh += remainingSurplus;
+                    monthly.curtailment[currentMonth] += remainingSurplus / 1000;
+
+                    if (remainingSurplus > maxSurplusGW) maxSurplusGW = remainingSurplus;
+                    calc.unmetLoad[h] = 0;
+
+                } else {
+                    let deficit = -netBalance;
+                    calc.curtailment[h] = 0;
+                    calc.batteryCharge[h] = 0;
+
+                    let maxDischargePossible = Math.min(deficit, state.batteryPowerGW);
+                    let actualDischarge = Math.min(maxDischargePossible, batteryStoredGWh);
+
+                    batteryStoredGWh -= actualDischarge;
+                    calc.batteryDischarge[h] = actualDischarge;
+                    totalBatteryDischargeGWh += actualDischarge;
+                    monthly.batteryDischarge[currentMonth] += actualDischarge / 1000;
+
+                    let remainingDeficit = deficit - actualDischarge;
+
+                    if (remainingDeficit > maxGasRequiredGW) {
+                        maxGasRequiredGW = remainingDeficit;
+                    }
+
+                    let gasDispatched = Math.min(remainingDeficit, state.capGasGW);
+                    calc.gasDispatch[h] = gasDispatched;
+                    totalGasGWh += gasDispatched;
+                    monthly.gas[currentMonth] += gasDispatched / 1000;
+
+                    let finalUnmet = remainingDeficit - gasDispatched;
+                    if (finalUnmet > 0.001) {
+                        calc.unmetLoad[h] = finalUnmet;
+                        totalUnmetGWh += finalUnmet;
+                        unmetHoursCount++;
+                    } else {
+                        calc.unmetLoad[h] = 0;
+                    }
+                }
+
+                calc.batterySoC[h] = state.batteryCapGWh > 0 ? ((batteryStoredGWh / state.batteryCapGWh) * 100) : 0;
+            }
+
+            let netLoad = new Float32Array(HOURS_IN_YEAR);
+            for (let h = 0; h < HOURS_IN_YEAR; h++) {
+                netLoad[h] = calc.demand[h] - (calc.nuclear[h] + calc.wind[h] + calc.solar[h]);
+            }
+            netLoad.sort().reverse();
+            calc.netLoadSorted = netLoad;
+
+            let demandTWh = totalDemandGWh / 1000;
+            let gasTWh = totalGasGWh / 1000;
+            let gasCapFactor = state.capGasGW > 0 ? ((totalGasGWh / (state.capGasGW * HOURS_IN_YEAR)) * 100) : 0;
+            let batteryCycles = state.batteryCapGWh > 0 ? ((totalBatteryDischargeGWh) / state.batteryCapGWh) : 0;
+
+            // FIX: Clean share is % of DEMAND met by non-fossil sources (1 - gas / demand)
+            let cleanDemandShare = demandTWh > 0 ? Math.max(0, Math.min(100, ((1 - (gasTWh / demandTWh)) * 100))) : 0;
+
+            updateMetricUI({
+                demandTWh,
+                cleanShare: cleanDemandShare,
+                gasTWh,
+                gasCapFactor,
+                maxGasRequiredGW,
+                installedGasGW: state.capGasGW,
+                batteryDischargeTWh: totalBatteryDischargeGWh / 1000,
+                batteryCycles: batteryCycles,
+                curtailmentTWh: totalCurtailmentGWh / 1000,
+                unmetTWh: totalUnmetGWh / 1000,
+                unmetHours: unmetHoursCount,
+                maxSurplusGW: maxSurplusGW
+            });
+
+            updateCharts(maxGasRequiredGW);
+        }
+
+        function updateMetricUI(m) {
+            let cleanVal = m.cleanShare.toFixed(1);
+            document.getElementById('metricCleanShare').innerText = `${cleanVal}%`;
+            document.getElementById('barCleanShare').style.width = `${Math.min(100, cleanVal)}%`;
+
+            document.getElementById('metricGasTWh').innerText = `${m.gasTWh.toFixed(1)} TWh`;
+            document.getElementById('metricGasCapFactor').innerText = `Cap Factor: ${m.gasCapFactor.toFixed(1)}%`;
+
+            document.getElementById('metricMaxGasGW').innerText = `${m.maxGasRequiredGW.toFixed(1)} GW`;
+            let margin = m.installedGasGW - m.maxGasRequiredGW;
+            let marginLabel = margin >= 0 ? `Margin: +${margin.toFixed(1)} GW` : `Deficit: ${margin.toFixed(1)} GW`;
+            const elMargin = document.getElementById('metricGasMargin');
+            elMargin.innerText = marginLabel;
+            elMargin.className = margin >= 0 ? "text-[10px] text-emerald-400 mt-1 font-medium" : "text-[10px] text-rose-400 mt-1 font-bold";
+
+            document.getElementById('metricBatteryDischarged').innerText = `${m.batteryDischargeTWh.toFixed(1)} TWh`;
+            document.getElementById('metricBatteryCycles').innerText = `${m.batteryCycles.toFixed(0)} cycles/yr`;
+
+            document.getElementById('metricCurtailmentTWh').innerText = `${m.curtailmentTWh.toFixed(1)} TWh`;
+            document.getElementById('metricPeakSurplus').innerText = `Peak Surplus: ${m.maxSurplusGW.toFixed(1)} GW`;
+
+            document.getElementById('metricUnmetTWh').innerText = `${m.unmetTWh.toFixed(2)} TWh`;
+            document.getElementById('metricUnmetHours').innerText = `${m.unmetHours} shortfall hrs`;
+            document.getElementById('totalDemandBadge').innerText = `${m.demandTWh.toFixed(0)} TWh`;
+
+            document.getElementById('bannerPeakGasNeeded').innerText = `${m.maxGasRequiredGW.toFixed(1)} GW`;
+            document.getElementById('bannerInstalledGas').innerText = `${m.installedGasGW.toFixed(1)} GW`;
+
+            const banner = document.getElementById('demandStatusBanner');
+            const iconContainer = document.getElementById('statusIconContainer');
+            const icon = document.getElementById('statusIcon');
+            const title = document.getElementById('statusTitle');
+            const badge = document.getElementById('statusBadge');
+            const desc = document.getElementById('statusDesc');
+
+            if (m.unmetHours === 0 && m.unmetTWh === 0) {
+                banner.className = "rounded-2xl p-4 border transition-all duration-300 flex flex-wrap items-center justify-between gap-4 bg-emerald-950/60 border-emerald-500/50 text-emerald-200 glow-success";
+                iconContainer.className = "p-2.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30";
+                icon.setAttribute('data-lucide', 'check-circle-2');
+                title.innerText = "ALL DEMAND FULLY MET (100% RELIABILITY)";
+                title.className = "text-base font-bold text-white tracking-wide";
+                badge.innerText = "✓ Zero Shortfall";
+                badge.className = "text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/40";
+                desc.innerText = `Supply & Storage successfully satisfied electricity demand across all 8,760 hours of the year. Peak firm backup dispatch: ${m.maxGasRequiredGW.toFixed(1)} GW.`;
+            } else {
+                banner.className = "rounded-2xl p-4 border transition-all duration-300 flex flex-wrap items-center justify-between gap-4 bg-rose-950/70 border-rose-500/60 text-rose-200 glow-warning";
+                iconContainer.className = "p-2.5 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30";
+                icon.setAttribute('data-lucide', 'alert-triangle');
+                title.innerText = "GRID DEFICIT DETECTED (UNMET LOAD)";
+                title.className = "text-base font-bold text-white tracking-wide";
+                badge.innerText = `⚠️ ${m.unmetHours} Shortfall Hours`;
+                badge.className = "text-xs font-bold px-2.5 py-0.5 rounded-full bg-rose-500/30 text-rose-200 border border-rose-500/50";
+                desc.innerText = `Installed gas capacity (${m.installedGasGW} GW) is insufficient to cover peak demand shortfall (${m.maxGasRequiredGW.toFixed(1)} GW needed). Increase installed gas, battery storage, or renewables.`;
+            }
+
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function initCharts() {
+            const ctxHourly = document.getElementById('hourlyBalanceChart').getContext('2d');
+            hourlyChart = new Chart(ctxHourly, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: 'Nuclear', data: [], backgroundColor: 'rgba(168, 85, 247, 0.75)', borderColor: '#a855f7', fill: true, borderWidth: 1, pointRadius: 0, stack: 'supply' },
+                        { label: 'Wind', data: [], backgroundColor: 'rgba(56, 189, 248, 0.75)', borderColor: '#38bdf8', fill: true, borderWidth: 1, pointRadius: 0, stack: 'supply' },
+                        { label: 'Solar PV', data: [], backgroundColor: 'rgba(250, 204, 21, 0.75)', borderColor: '#facc15', fill: true, borderWidth: 1, pointRadius: 0, stack: 'supply' },
+                        { label: 'Battery Discharge', data: [], backgroundColor: 'rgba(52, 211, 153, 0.75)', borderColor: '#34d399', fill: true, borderWidth: 1, pointRadius: 0, stack: 'supply' },
+                        { label: 'Gas Thermal', data: [], backgroundColor: 'rgba(244, 63, 94, 0.75)', borderColor: '#f43f5e', fill: true, borderWidth: 1, pointRadius: 0, stack: 'supply' },
+                        { label: 'Battery SoC (%)', data: [], borderColor: '#6ee7b7', borderDash: [4, 4], fill: false, borderWidth: 1.5, pointRadius: 0, yAxisID: 'ySoC' },
+                        { label: 'Total Demand', data: [], borderColor: '#ffffff', borderWidth: 2.5, fill: false, pointRadius: 0 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: '#0f172a',
+                            borderColor: '#334155',
+                            borderWidth: 1,
+                            titleColor: '#f8fafc',
+                            bodyColor: '#cbd5e1',
+                            callbacks: {
+                                label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y.toFixed(1)} ${ctx.dataset.yAxisID === 'ySoC' ? '%' : 'GW'}`
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { color: 'rgba(51, 65, 85, 0.3)' }, ticks: { color: '#94a3b8', maxTicksLimit: 14 } },
+                        y: { position: 'left', grid: { color: 'rgba(51, 65, 85, 0.3)' }, ticks: { color: '#94a3b8' }, title: { display: true, text: 'Power (GW)', color: '#94a3b8' } },
+                        ySoC: { position: 'right', min: 0, max: 100, grid: { display: false }, ticks: { color: '#34d399', callback: v => v + '%' }, title: { display: true, text: 'Battery SoC', color: '#34d399' } }
+                    }
+                }
+            });
+
+            const ctxMonthly = document.getElementById('monthlyBalanceChart').getContext('2d');
+            monthlyChart = new Chart(ctxMonthly, {
+                type: 'bar',
+                data: {
+                    labels: MONTH_NAMES,
+                    datasets: [
+                        { label: 'Nuclear', data: [], backgroundColor: '#a855f7', stack: 'supply' },
+                        { label: 'Wind', data: [], backgroundColor: '#38bdf8', stack: 'supply' },
+                        { label: 'Solar', data: [], backgroundColor: '#facc15', stack: 'supply' },
+                        { label: 'Battery', data: [], backgroundColor: '#34d399', stack: 'supply' },
+                        { label: 'Gas', data: [], backgroundColor: '#f43f5e', stack: 'supply' },
+                        { label: 'Demand', data: [], type: 'line', borderColor: '#ffffff', borderWidth: 2, fill: false, pointRadius: 3 }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#94a3b8' } },
+                        y: { grid: { color: 'rgba(51, 65, 85, 0.3)' }, ticks: { color: '#94a3b8' }, title: { display: true, text: 'Energy (TWh)', color: '#94a3b8' } }
+                    }
+                }
+            });
+
+            const ctxDuration = document.getElementById('durationCurveChart').getContext('2d');
+            durationChart = new Chart(ctxDuration, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: 100}, (_, i) => `${i}%`),
+                    datasets: [
+                        {
+                            label: 'Net Deficit Peak (GW)',
+                            data: [],
+                            borderColor: '#f43f5e',
+                            backgroundColor: 'rgba(244, 63, 94, 0.15)',
+                            fill: true,
+                            borderWidth: 2,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Installed Gas Cap (GW)',
+                            data: [],
+                            borderColor: '#fbbf24',
+                            borderDash: [5, 5],
+                            borderWidth: 2,
+                            fill: false,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { display: true, labels: { color: '#cbd5e1', font: { size: 10 } } } 
+                    },
+                    scales: {
+                        x: { grid: { color: 'rgba(51, 65, 85, 0.3)' }, ticks: { color: '#94a3b8', maxTicksLimit: 6 } },
+                        y: { grid: { color: 'rgba(51, 65, 85, 0.3)' }, ticks: { color: '#94a3b8' }, title: { display: true, text: 'Peak Net Load (GW)', color: '#94a3b8' } }
+                    }
+                }
+            });
+        }
+
+        function updateCharts(maxGasRequiredGW) {
+            let startH = state.windowStartHour;
+            let endH = state.windowStartHour + state.windowLengthHours;
+            let sampleStep = state.windowLengthHours > 1000 ? 24 : 1;
+
+            if (endH > HOURS_IN_YEAR) endH = HOURS_IN_YEAR;
+
+            let labels = [];
+            let nuc = [], wind = [], solar = [], battDis = [], gas = [], soc = [], dem = [];
+
+            for (let h = startH; h < endH; h += sampleStep) {
+                let day = Math.floor(h / 24) + 1;
+                let hr = h % 24;
+                labels.push(state.windowLengthHours > 1000 ? `Day ${day}` : `D${day} ${hr}:00`);
+
+                nuc.push(calc.nuclear[h]);
+                wind.push(calc.wind[h]);
+                solar.push(calc.solar[h]);
+                battDis.push(calc.batteryDischarge[h]);
+                gas.push(calc.gasDispatch[h]);
+                soc.push(calc.batterySoC[h]);
+                dem.push(calc.demand[h]);
+            }
+
+            hourlyChart.data.labels = labels;
+            hourlyChart.data.datasets[0].data = nuc;
+            hourlyChart.data.datasets[1].data = wind;
+            hourlyChart.data.datasets[2].data = solar;
+            hourlyChart.data.datasets[3].data = battDis;
+            hourlyChart.data.datasets[4].data = gas;
+            hourlyChart.data.datasets[5].data = soc;
+            hourlyChart.data.datasets[6].data = dem;
+            hourlyChart.update('none');
+
+            monthlyChart.data.datasets[0].data = Array.from(monthly.nuclear);
+            monthlyChart.data.datasets[1].data = Array.from(monthly.wind);
+            monthlyChart.data.datasets[2].data = Array.from(monthly.solar);
+            monthlyChart.data.datasets[3].data = Array.from(monthly.batteryDischarge);
+            monthlyChart.data.datasets[4].data = Array.from(monthly.gas);
+            monthlyChart.data.datasets[5].data = Array.from(monthly.demand);
+            monthlyChart.update();
+
+            let sampledDuration = [];
+            let installedGasLine = [];
+            for (let i = 0; i < 100; i++) {
+                let idx = Math.floor((i / 100) * HOURS_IN_YEAR);
+                sampledDuration.push(calc.netLoadSorted[idx]);
+                installedGasLine.push(state.capGasGW);
+            }
+            durationChart.data.datasets[0].data = sampledDuration;
+            durationChart.data.datasets[1].data = installedGasLine;
+            durationChart.update();
+
+            let startDay = Math.floor(startH / 24) + 1;
+            let endDay = Math.floor(endH / 24) + 1;
+            document.getElementById('scrubHourLabel').innerText = `Hour: ${startH}`;
+            document.getElementById('scrubberDateRange').innerText = `Day ${startDay} - Day ${endDay}`;
+        }
+
+        function setTimeWindow(win) {
+            if (win === 'winter_peak') {
+                state.windowStartHour = 24;
+                state.windowLengthHours = 168;
+            } else if (win === 'dunkelflaute') {
+                state.windowStartHour = 240;
+                state.windowLengthHours = 168;
+            } else if (win === 'summer_solar') {
+                state.windowStartHour = 4344;
+                state.windowLengthHours = 168;
+            } else if (win === 'full_year') {
+                state.windowStartHour = 0;
+                state.windowLengthHours = HOURS_IN_YEAR;
+            }
+
+            const btns = [
+                { id: 'btnWinWinter', name: 'winter_peak' },
+                { id: 'btnWinDunkelflaute', name: 'dunkelflaute' },
+                { id: 'btnWinSummer', name: 'summer_solar' },
+                { id: 'btnWinFull', name: 'full_year' }
+            ];
+
+            btns.forEach(b => {
+                const el = document.getElementById(b.id);
+                el.className = b.name === win 
+                    ? "px-3 py-1.5 rounded-lg font-medium transition bg-sky-500/20 text-sky-300 border border-sky-500/30"
+                    : "px-3 py-1.5 rounded-lg font-medium transition text-slate-400 hover:text-slate-200";
+            });
+
+            document.getElementById('sliderTimeScrubber').value = state.windowStartHour;
+            updateCharts();
+        }
+
+        function togglePlayPause() {
+            state.isPlaying = !state.isPlaying;
+            const icon = document.getElementById('iconPlay');
+
+            if (state.isPlaying) {
+                icon.setAttribute('data-lucide', 'pause');
+                playbackTimer = setInterval(() => {
+                    state.windowStartHour += 24;
+                    if (state.windowStartHour + state.windowLengthHours > HOURS_IN_YEAR) {
+                        state.windowStartHour = 0;
+                    }
+                    document.getElementById('sliderTimeScrubber').value = state.windowStartHour;
+                    updateCharts();
+                }, 300);
+            } else {
+                icon.setAttribute('data-lucide', 'play');
+                clearInterval(playbackTimer);
+            }
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function bindControls() {
+            function bindSlider(id, key, valId, suffix = '') {
+                document.getElementById(id).addEventListener('input', (e) => {
+                    let v = parseFloat(e.target.value);
+                    state[key] = v;
+                    document.getElementById(valId).innerText = `${v} ${suffix}`;
+                    runSimulation();
+                });
+            }
+
+            bindSlider('inputBuildings', 'demandBuildingsTWh', 'buildingsVal', 'TWh');
+            bindSlider('inputTransport', 'demandTransportTWh', 'transportVal', 'TWh');
+            bindSlider('inputIndustry', 'demandIndustryTWh', 'industryVal', 'TWh');
+
+            bindSlider('inputWind', 'capWindGW', 'windVal', 'GW');
+            bindSlider('inputSolar', 'capSolarGW', 'solarVal', 'GW');
+            bindSlider('inputNuclear', 'capNuclearGW', 'nuclearVal', 'GW');
+            bindSlider('inputGas', 'capGasGW', 'gasVal', 'GW');
+
+            bindSlider('inputBatteryPower', 'batteryPowerGW', 'batteryPowerVal', 'GW');
+            bindSlider('inputBatteryCap', 'batteryCapGWh', 'batteryCapVal', 'GWh');
+
+            document.getElementById('sliderTimeScrubber').addEventListener('input', (e) => {
+                state.windowStartHour = parseInt(e.target.value);
+                updateCharts();
+            });
+        }
+
+        function setSliderVal(id, labelId, val, suffix) {
+            document.getElementById(id).value = val;
+            document.getElementById(labelId).innerText = `${val} ${suffix}`;
+        }
+
+        function applyPreset(preset) {
+            if (preset === 'current') {
+                state.demandBuildingsTWh = 140;
+                state.demandTransportTWh = 60;
+                state.demandIndustryTWh = 120;
+                state.capWindGW = 45;
+                state.capSolarGW = 25;
+                state.capNuclearGW = 6;
+                state.capGasGW = 55;
+                state.batteryPowerGW = 10;
+                state.batteryCapGWh = 40;
+            } else if (preset === 'high_renewable') {
+                state.demandBuildingsTWh = 160;
+                state.demandTransportTWh = 80;
+                state.demandIndustryTWh = 120;
+                state.capWindGW = 95;
+                state.capSolarGW = 65;
+                state.capNuclearGW = 6;
+                state.capGasGW = 35;
+                state.batteryPowerGW = 30;
+                state.batteryCapGWh = 150;
+            } else if (preset === 'nuclear_clean') {
+                state.demandBuildingsTWh = 150;
+                state.demandTransportTWh = 70;
+                state.demandIndustryTWh = 120;
+                state.capWindGW = 35;
+                state.capSolarGW = 25;
+                state.capNuclearGW = 24;
+                state.capGasGW = 25;
+                state.batteryPowerGW = 15;
+                state.batteryCapGWh = 60;
+            } else if (preset === 'deep_electrification') {
+                state.demandBuildingsTWh = 220;
+                state.demandTransportTWh = 140;
+                state.demandIndustryTWh = 180;
+                state.capWindGW = 140;
+                state.capSolarGW = 110;
+                state.capNuclearGW = 12;
+                state.capGasGW = 45;
+                state.batteryPowerGW = 45;
+                state.batteryCapGWh = 220;
+            }
+
+            setSliderVal('inputBuildings', 'buildingsVal', state.demandBuildingsTWh, 'TWh');
+            setSliderVal('inputTransport', 'transportVal', state.demandTransportTWh, 'TWh');
+            setSliderVal('inputIndustry', 'industryVal', state.demandIndustryTWh, 'TWh');
+
+            setSliderVal('inputWind', 'windVal', state.capWindGW, 'GW');
+            setSliderVal('inputSolar', 'solarVal', state.capSolarGW, 'GW');
+            setSliderVal('inputNuclear', 'nuclearVal', state.capNuclearGW, 'GW');
+            setSliderVal('inputGas', 'gasVal', state.capGasGW, 'GW');
+
+            setSliderVal('inputBatteryPower', 'batteryPowerVal', state.batteryPowerGW, 'GW');
+            setSliderVal('inputBatteryCap', 'batteryCapVal', state.batteryCapGWh, 'GWh');
+
+            runSimulation();
+        }
+
+        window.onload = function() {
+            lucide.createIcons();
+            generateProfiles();
+            initCharts();
+            bindControls();
+            runSimulation();
+        };
+    </script>
+</body>
+</html>
